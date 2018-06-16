@@ -1,6 +1,7 @@
 package tech.cryptoexplained.hash.aes;
 
 import com.sun.istack.internal.NotNull;
+import tech.cryptoexplained.hash.common.ByteUtils;
 import tech.cryptoexplained.hash.common.HashDirection;
 
 public class Aes {
@@ -27,6 +28,13 @@ public class Aes {
         return expandedKeys;
     }
 
+    /**
+     * Produce next block of 16, 24 or 32-bytes for input key of 128, 192 or 256-bits length
+     * @param expandedKeys byte array for expanded keys
+     * @param aesKeyParams AES key parameters
+     * @param iteration    number of iteration
+     * @param direction    encryption or decryption direction
+     */
     private void generateNextBytes(byte[] expandedKeys, AesKeyParam aesKeyParams, int iteration, HashDirection direction) {
         int bufferPosition = iteration * aesKeyParams.getLengthBytes();
         byte[] temporary = new byte[4];
@@ -35,15 +43,15 @@ public class Aes {
 
         for (int i = 0; i < 4; i++) {
             byte[] previousBlock = getPreviousBlock(expandedKeys, bufferPosition, aesKeyParams);
-            temporary = exclusiveOrWithPreviousBlock(temporary, previousBlock);
-            bufferPosition = savePutToBuffer(expandedKeys, temporary, bufferPosition);
+            temporary = ByteUtils.xor(temporary, previousBlock);
+            bufferPosition = ByteUtils.savePutToBuffer(expandedKeys, temporary, bufferPosition);
         }
 
         if (AesKeyParam.KEY_192_BITS.equals(aesKeyParams)) {
             for (int i = 0; i < 2; i++) {
                 byte[] previousBlock = getPreviousBlock(expandedKeys, bufferPosition, aesKeyParams);
-                temporary = exclusiveOrWithPreviousBlock(temporary, previousBlock);
-                bufferPosition = savePutToBuffer(expandedKeys, temporary, bufferPosition);
+                temporary = ByteUtils.xor(temporary, previousBlock);
+                bufferPosition = ByteUtils.savePutToBuffer(expandedKeys, temporary, bufferPosition);
             }
         }
 
@@ -51,35 +59,22 @@ public class Aes {
             temporary = AesUtils.applySBox(temporary, direction);
             for (int i = 0; i < 4; i++) {
                 byte[] previousBlock = getPreviousBlock(expandedKeys, bufferPosition, aesKeyParams);
-                temporary = exclusiveOrWithPreviousBlock(temporary, previousBlock);
-                bufferPosition = savePutToBuffer(expandedKeys, temporary, bufferPosition);
+                temporary = ByteUtils.xor(temporary, previousBlock);
+                bufferPosition = ByteUtils.savePutToBuffer(expandedKeys, temporary, bufferPosition);
             }
         }
     }
 
+    /**
+     * Get previous 4-bytes block with shift that is equals to input key length
+     * @param expandedKeys expanded round keys
+     * @param bufferPosition current position in expanded keys array
+     * @param aesKeyParams AES input keys params
+     * @return previous 4-bytes block shift that is equals to input key length
+     */
     private byte[] getPreviousBlock(byte[] expandedKeys, int bufferPosition, AesKeyParam aesKeyParams) {
         byte[] previousBlock = new byte[4];
         System.arraycopy(expandedKeys, bufferPosition - aesKeyParams.getLengthBytes(), previousBlock, 0, 4);
         return previousBlock;
-    }
-
-    private byte[] exclusiveOrWithPreviousBlock(byte[] input, byte[] previousBlock) {
-        byte[] output = new byte[4];
-        for (int i = 0; i < 4; i++) {
-            output[i] = (byte) ((input[i] ^ previousBlock[i]) & 0xFF);
-        }
-        return output;
-    }
-
-    private int savePutToBuffer(byte[] destination, byte[] source, int bufferPosition) {
-        int currentPosition = bufferPosition;
-        for (byte sourceByte : source) {
-            if (currentPosition >= destination.length) {
-                return currentPosition;
-            }
-            destination[currentPosition] = sourceByte;
-            currentPosition++;
-        }
-        return currentPosition;
     }
 }
